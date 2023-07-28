@@ -1,0 +1,167 @@
+---
+- hosts: localhost
+  become: true
+  become_user: cacs9d
+  gather_facts: true
+  
+  vars:
+   cacs_deplyed_loc: /apps/CACS9DPOC2
+   cacs_zip_untar_loc: /apps/cacsbuild/deploy
+   jboss_env_loc: /apps/JBOSS9D2
+   bamboo_build_loc: /apps/bamboo-home/xml-data/build-dir/COLL360-CACSP-ANT/cacs-builds/CACS-9.3.0/106/
+
+  tasks:
+  - name: Creates directory
+    file:
+      path: "{{ item }}"
+      state: directory
+      owner: cacs9d
+      group: cacs9d
+	  mode: 0777
+	with_items:
+    - "{{ cacs_zip_untar_loc }}"
+      
+
+  - name: Creates directory
+    file:
+      path: "{{ item }}"
+      state: directory
+      owner: cacs9d
+      group: cacs9d
+      mode: 0777
+	with_items:
+    - "{{ jboss_env_loc }}"
+
+  - name: Unarchive a file that is already on the remote machine
+    unarchive:
+      src: /tmp/eap-7.0.zip
+      dest: "{{ item }}"
+	with_items:
+    - "{{ jboss_env_loc }}"
+    remote_src: yes
+
+  - name: Unarchive a file that is already on the remote machine
+    unarchive:
+       src: "{{ item.src }}"/CACS-9.3.0-106-jboss.zip
+       dest: "{{ item.dest }}"
+    with_items:
+    - { src: 'bamboo_build_loc', dest: 'cacs_zip_untar_loc' }
+    remote_src: yes
+
+  - name: Clean artifact path
+    file:
+       state: absent
+       path: "{{ item }}"/CACS-9.3.0-106-jboss.zip
+    with_items:
+    - "{{ cacs_zip_untar_loc }}"
+
+  - name: Clean autodeploy.properties
+    file:
+       state: absent
+       path: "{{ item }}"/Install/autodeploy/auto-deploy.properties
+    with_items:
+    - "{{ cacs_zip_untar_loc }}"
+
+  - name: Copy Updated autodeploy.properties
+    copy:
+       src: "{{ item }}"/propertie_files/auto-deploy.properties.cacs.new
+       dest: "{{ item }}"/Install/autodeploy/auto-deploy.properties
+       owner: cacs9d
+       group: cacs9d
+       mode: 0777
+    with_items:
+    - "{{ cacs_zip_untar_loc }}"
+
+  - name: Change the working directory to somedir/ before executing the command.
+    shell: ant -Dtarget.app.server=jboss -buildfile "{{ item }}"/Install/autodeploy/auto-deploy.xml
+    with_items:
+    - "{{ cacs_zip_untar_loc }}"
+
+  - name: Set permissions for Jboss
+    file:
+       path: "{{ item }}"
+       owner: cacs9d
+       group: cacs9d
+       mode: 0777
+    with_items:
+    - "{{ jboss_env_loc }}"
+
+  - name: Copy Updated ojdbc7.jar
+    copy:
+       src: "{{ item.src }}"/propertie_files/ojdbc7.jar
+       dest: "{{ item.dest }}"/CACS/cacs/components/lib/system/ojdbc7.jar
+       owner: cacs9d
+       group: cacs9d
+       mode: 0777
+    with_items:
+    - { src: 'cacs_zip_untar_loc', dest: 'jboss_env_loc' }
+
+  - name: Copy Updated ojdbc7.jar
+    copy:
+       src: "{{ item.src }}"/propertie_files/ojdbc7.jar
+       dest: "{{ item.dest }}"/CACS/cacs/deploy/lib/system/ojdbc7.jar
+       owner: cacs9d
+       group: cacs9d
+       mode: 0777
+	with_items:
+    - { src: 'cacs_zip_untar_loc', dest: 'jboss_env_loc' }
+
+  - name: Change the working directory to somedir/ before executing the command.
+    shell: cd "{{ item }}"/CACS/cacs/build/jboss/ && sh config-single-server.sh
+    with_items:
+    - "{{ jboss_env_loc }}"
+
+  - name: backup Updated runJboss-cacsServer1.sh
+    copy:
+       src: "{{ item }}"/jboss-eap-7.1/runJboss-cacsServer1.sh
+       dest: "{{ item }}"/jboss-eap-7.1/runJboss-cacsServer1.sh.backup
+       owner: cacs9d
+       group: cacs9d
+       mode: 0777
+    with_items:
+    - "{{ jboss_env_loc }}"
+	remote_src: yes
+
+  - name: backup Updated stopJboss-cacsServer1.sh
+    copy:
+       src: "{{ item }}"/jboss-eap-7.1/stopJboss-cacsServer1.sh
+       dest: "{{ item }}"/jboss-eap-7.1/stopJboss-cacsServer1.sh.backup
+       owner: cacs9d
+       group: cacs9d
+       mode: 0777
+	with_items:
+    - "{{ jboss_env_loc }}"
+	
+
+  - name: backup Updated standalone-full-cacsServer1.xml
+    copy:
+       src: "{{ item }}"jboss-eap-7.1/standalone/configuration/standalone-full-cacsServer1.xml
+       dest: "{{ item }}"/jboss-eap-7.1/standalone/configuration/standalone-full-cacsServer1.xml.backup
+       owner: cacs9d
+       group: cacs9d
+       mode: 0777
+    with_items:
+    - "{{ jboss_env_loc }}"
+
+  - name: Change the working directory to somedir/ before executing the command.
+    shell: cd /apps/CACS9DPOC/CACS/cacs/build/ && sh db-rebuild-views.sh
+
+  - name: Change the working directory to somedir/ before executing the command.
+    shell: cd "{{ item }}"/CACS/cacs/build/ && sh db-rebuild-functions.sh
+    with_items:
+    - "{{ jboss_env_loc }}"
+
+  - name: Copy Updated stopJboss-cacsServer1.sh
+    copy:
+       src: "{{ item.src }}"/CACS/Dashboard/deploy/cacsdashboard.war
+       dest: "{{ item.dest }}"/jboss-eap-7.1/standalone/deployments/cacsdashboard.war
+       owner: cacs9d
+       group: cacs9d
+       mode: 0777
+    with_items:
+    - { src: 'cacs_zip_untar_loc', dest: 'jboss_env_loc' }
+
+  - name: Change the working directory to somedir/ before executing the command.
+    shell: cd "{{ item }}"/jboss-eap-7.1/ && ./runJboss-cacsServer1.sh &
+    with_items:
+    - "{{ jboss_env_loc }}"
